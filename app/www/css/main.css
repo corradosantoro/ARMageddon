@@ -1,0 +1,248 @@
+* {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    list-style: none;
+    outline: none;
+}
+
+/* @font-face { */
+/*    font-family: "gl-font"; */
+/*    src: url("../assets/Montserrat-Regular.ttf"); */
+/*  } */
+
+html, body {
+    height: 100%;
+    overflow-y: auto;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    /*font-family: gl-font;*/
+    font-size: 12px;
+    color: #303030;
+    background-color: #343434;
+    margin: 0px;
+    padding: 0px;
+    overflow: hidden;
+}
+
+a {
+    text-decoration: none;
+    color: #000;
+}
+
+button {
+    /*font-family: gl-font;*/
+    font-size: 12px;
+ }
+
+a:hover {
+    text-decoration: none;
+}
+
+a.disabled {
+    pointer-events: none;
+    cursor: default;
+    color: #999;
+}
+
+
+/* ------------------------------------------ */
+
+.disasm-box {
+  position: absolute;
+  top: 140px;
+  left: 380px;
+  width: 460px;
+  height: 464px;
+  font-size: 14px;
+  font-family: Courier, monospaced;
+  font-weight: bold;
+  background-color: #999;
+  border: 2px solid;
+  border-color: #272928;
+  border-radius: 0px;
+  padding: 6px;
+  overflow-y: scroll;
+ }
+
+.disasm-line {
+  width: 448px;
+  height: 18px;
+  padding-top: 2px;
+ }
+
+.register-box {
+  position: absolute;
+  top: 140px;
+  left: 10px;
+  width: 330px;
+  height: 464px;
+  padding: 6px;
+  background-color: #999;
+  border: 2px solid;
+  border-color: #272928;
+  border-radius: 0px;
+ }
+
+.register-box table {
+  background-color: #999;
+}
+
+.register-title {
+  font-size: 14px;
+  font-family: Courier, monospaced;
+  font-weight: bold;
+  text-align: center;
+  background-color: #999;
+  width: 50px;
+}
+
+.register-name {
+  font-size: 14px;
+  font-family: Courier, monospaced;
+  font-weight: bold;
+  text-align: center;
+  background-color: #999;
+  width: 50px;
+  border: 1px solid;
+  border-color: #272928;
+}
+
+.register-value {
+  font-size: 14px;
+  font-family: Courier, monospaced;
+  text-align: center;
+  font-weight: bold;
+  border: 1px solid;
+  border-color: #272928;
+  color: #dd0;
+  width: 130px;
+  padding: 4px;
+  /*background-color: #999;*/
+  background-image: linear-gradient(to bottom, #888888 0%, #666666 51%, #333333 100%);
+}
+
+/* ------------------------------------------ */
+
+.led-box{
+   position: absolute;
+   width: 80px;
+   height: 40px;
+   border: 2px solid;
+   border-color: #222;
+   color: #fff;
+  padding-top: 4px;
+  align: center;
+}
+
+.green-led {
+  margin: 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #080;
+  box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(0, 255, 0, 0.5) 0 2px 12px;
+ /* -webkit-box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(255, 0, 0, 0.5) 0 2px 12px;*/
+}
+
+.led-text {
+   font-size: 12px;
+   font-weight: bold;
+   text-align: center;
+ }
+
+.red-led {
+  margin: 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #800;
+  box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(255, 0, 0, 0.5) 0 2px 12px;
+ /* -webkit-box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(255, 0, 0, 0.5) 0 2px 12px;*/
+}
+
+.invalid-box {
+   top: 10px;
+   left: 10px;
+ }
+
+.halt-box {
+   top: 10px;
+   left: 90px;
+ }
+
+.step-box {
+   top: 10px;
+   left: 250px;
+ }
+
+
+
+
+/* ------------------------------------------ */
+
+.key-button {
+   position: absolute;
+   color: #fff;
+   font-size: 12px;
+   font-weight: bold;
+   width: 70px;
+   height: 70px;
+   border-radius: 10%;
+   border: 1px solid;
+   border-color: #272928;
+}
+
+.blue {
+   background-color: #00f;
+   box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(0, 0, 255, 0.5) 0 2px 12px;
+ }
+
+.red {
+   background-color: #c00;
+   box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(255, 0, 0, 0.5) 0 2px 12px;
+ }
+
+.halt-button {
+   position: absolute;
+   left: 32px;
+   top: 250px;
+   width: 80px;
+   height: 32px;
+   padding-top: 5px;
+   padding-bottom: 5px;
+   color: #444;
+   font-size: 16px;
+   font-weight: bold;
+   border: 1px solid;
+   border-color: #272928;
+   border-radius: 8px;
+   background-color: #333;
+   /*background-image: linear-gradient(to bottom, #535c7e 0%, #434c6e 51%, #232c4e 100%);*/
+}
+
+.open-button {
+   top: 60px;
+   left: 15px;
+ }
+
+.reset-button {
+   top: 60px;
+   left: 100px;
+ }
+
+.run-button {
+   top: 60px;
+   left: 180px;
+ }
+
+.step-button {
+   top: 60px;
+   left: 260px;
+ }
+
+/* ------------------------------------------ */
+
+
