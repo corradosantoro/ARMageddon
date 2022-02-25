@@ -60,8 +60,8 @@ $(document).ready(function () {
         }
     });
 
-    arm_core = new STM32F4();
-    //arm_core = new BareArmPlatform();
+    //arm_core = new STM32F4();
+    arm_core = new BareArmPlatform();
     arm_core.add_region(new Region(0x08000000, 2**16, Region.ROM))
 
     arm = new Arm(arm_core, ARM_MODE.THUMB);
