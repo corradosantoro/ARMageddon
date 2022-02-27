@@ -338,14 +338,14 @@ class Arm {
         else if (instr_f000 == 0x7000) { // STR.B | LDR.B Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op],
-                     op_str : reg_name(Rd) + ".B, [" + reg_name(Rn) + "," + (imm).toString(16) + "]" };
+            return { mnemonic : this.str_ldr[op] + ".B",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm).toString(16) + "]" };
         }
         else if (instr_f000 == 0x8000) { // STR.W | LDR.W Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op],
-                     op_str : reg_name(Rd) + ".W, [" + reg_name(Rn) + "," + (imm*2).toString(16) + "]" };
+            return { mnemonic : this.str_ldr[op] + ".W",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm*2).toString(16) + "]" };
         }
         else if (instr_f000 == 0x9000) { // STR | LDR from/to SP 
             var op = (instr >> 11) & 1;
@@ -440,9 +440,9 @@ class Arm {
             var subcode = (instr_2 >> 8) & 0xf;
 
             if (Rn == 15) {
-                var target = (pc & 0xfffc) + imm12;// + 4;
+                var target = (pc & 0xfffffffc) + imm12;// + 4;
                 // PC +/- imm12
-                return { mnemonic : "LDR",
+                return { mnemonic : "LDR" + this.__size(S, size),
                          op_str : reg_name(Rt) + ", [ #0x" + target.toString(16) + " ] ;; pc + " + imm12,
                          skip : true };
             }
@@ -454,7 +454,7 @@ class Arm {
             }
             else if (subcode == 0xc) {
                 // Rn - imm8
-                return { mnemonic : this.str_ldr[L],
+                return { mnemonic : this.str_ldr[L] + this.__size(S, size),
                          op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " - #0x" + imm8.toString(16) + "]",
                          skip : true };
             }
@@ -462,7 +462,7 @@ class Arm {
                 // Rn + shifted register
                 var shift = (instr_2 >> 3) & 3;
                 var Rm = instr_2 & 0x7;
-                return { mnemonic : this.str_ldr[L],
+                return { mnemonic : this.str_ldr[L] + this.__size(S, size),
                          op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " + " + reg_name(Rm) + " shr " + shift.toString(16) + "]",
                          skip : true };
             }
@@ -476,7 +476,7 @@ class Arm {
     // --------S UxxL Rn   Rt
 
     __size(S, size) {
-        if (size == 2) return "";
+        if (size == 0) return "";
         if (size == 1 && S == 0) return ".B";
         if (size == 1 && S == 1) return ".BS";
         if (size == 2 && S == 0) return ".W";
