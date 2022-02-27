@@ -66,6 +66,7 @@ $(document).ready(function () {
 
     arm = new Arm(arm_core, ARM_MODE.THUMB);
 
+    Disassembler.init();
     Indicators.init();
 });
 
