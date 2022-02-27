@@ -8,6 +8,11 @@ var Disassembler = {
     AddressMap : [ ],
 
     currentHighlighted : undefined,
+    disasmBox : undefined,
+
+    init : function() {
+        this.disasmBox = document.getElementById("disasm-box");
+    },
 
     disasm_line : function(instr) {
         var s = "0x" + right_justify(instr.address.toString(16).toUpperCase(), 8, '0') + htmlize_spaces("    ") +
@@ -57,7 +62,7 @@ var Disassembler = {
         }
 
         var $this = this;
-        document.getElementById("disasm-box").innerHTML = theHtml;
+        this.disasmBox.innerHTML = theHtml;
         for (var i = 0; i < this.OpList.length;i++) {
             var e = document.getElementById('disasm-line-' + i);
             e.array_index = i;
@@ -76,8 +81,9 @@ var Disassembler = {
         if (line != undefined) {
             var line_element = document.getElementById("disasm-line-" + line);
             var rect = line_element.getBoundingClientRect();
-            var rect_parent = document.getElementById("disasm-box").getBoundingClientRect();
-            document.getElementById("disasm-box").scrollTop = rect.top - rect_parent.top;
+            var rect_parent = this.disasmBox.getBoundingClientRect();
+            var pos = line * rect.height;
+            this.disasmBox.scrollTop = pos;
             line_element.style.backgroundColor = "#f00";
             this.currentHighlighted = line_element;
         }

@@ -35,6 +35,8 @@ class Arm {
         this.str = [ "STR", "STR.W", "STR.B", "STR.SB" ];
         this.ldr = [ "LDR", "STR.W", "LDR.B", "STR.SB" ];
         this.str_ldr = [ "STR", "LDR" ];
+        this.sp_pc = [ "PC", "SP"];
+        this.stmia_ldmia = [ "STMIA", "LDMIA"];
 
     }
 
@@ -273,7 +275,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x4600) { // MOV rd, rn
             if (do_execute) {
-                status.registers[Rd] = status.registers[Rn];
+                this.status.registers[Rd] = this.status.registers[Rn];
                 return { ok : true };
             }
             else
@@ -336,14 +338,47 @@ class Arm {
         else if (instr_f000 == 0x7000) { // STR.B | LDR.B Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op],
-                     op_str : reg_name(Rd) + ".B, [" + reg_name(Rn) + "," + (imm).toString(16) + "]" };
+            return { mnemonic : this.str_ldr[op] + ".B",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm).toString(16) + "]" };
         }
         else if (instr_f000 == 0x8000) { // STR.W | LDR.W Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
+            return { mnemonic : this.str_ldr[op] + ".W",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm*2).toString(16) + "]" };
+        }
+        else if (instr_f000 == 0x9000) { // STR | LDR from/to SP 
+            var op = (instr >> 11) & 1;
+            var Rd = (instr >> 8) & 0x7;
+            var imm = instr & 0x7f;
+            var target = this.status.registers[13] + (imm*4); 
+                     //STR <Rd>, [SP, #<immed_8>*4] | LDR <Rd>, [SP, #<immed_8>*4] 
             return { mnemonic : this.str_ldr[op],
-                     op_str : reg_name(Rd) + ".W, [" + reg_name(Rn) + "," + (imm*2).toString(16) + "]" };
+                     op_str : reg_name(Rd) + ", [SP, #" + (imm*4).toString(16) + "] ;; #0x" + target.toString(16) };
+        }
+        else if (instr_f000 == 0xA000) { // ADD (PC/SP plus immediate)
+            var op = (instr >> 11) & 1;
+            var Rd = (instr >> 8) & 0x7;
+            var imm = instr & 0x7f;
+            var target = this.status.registers[13+(op*2)] + (imm*4);
+                    //ADD <Rd>, PC, #<immed_8>*4 | ADD <Rd>, SP, #<immed_8>*4
+            return { mnemonic: "ADD",
+                     op_str : reg_name(Rd) + ", " + this.sp_pc[op] + ", #" + (imm*4).toString(16) + " ;; #0x" + target.toString(16) };
+        }
+        else if (instr_f000 == 0xC000) { // STMIA | LDMIA 
+            var op = (instr >> 11) & 1;
+            var Rn = (instr >> 8) & 0x7;
+            var reg_list = [];
+            var reg_str = "{";
+            for(var i = 0; i < 8; i++)
+                if ((instr >> i) & 1){
+                    reg_list.push(i);
+                    reg_str += "R" + i + ",";
+                }
+            reg_str = reg_str.replace(/.$/,"}");
+                    //STMIA <Rn>!, {<registers>} | LDMIA <Rn>!, {<registers>}
+            return { mnemonic: this.stmia_ldmia[op],
+                     op_str : reg_name(Rn) + "!, " + reg_str };
         }
         else if (instr_f000 == 0xd000 ) { // Bcond | invalid | SWI
             var cond = (instr >> 8) & 0xf;
@@ -405,9 +440,9 @@ class Arm {
             var subcode = (instr_2 >> 8) & 0xf;
 
             if (Rn == 15) {
-                var target = (pc & 0xfffc) + imm12;// + 4;
+                var target = (pc & 0xfffffffc) + imm12;// + 4;
                 // PC +/- imm12
-                return { mnemonic : "LDR",
+                return { mnemonic : "LDR" + this.__size(S, size),
                          op_str : reg_name(Rt) + ", [ #0x" + target.toString(16) + " ] ;; pc + " + imm12,
                          skip : true };
             }
@@ -419,7 +454,7 @@ class Arm {
             }
             else if (subcode == 0xc) {
                 // Rn - imm8
-                return { mnemonic : this.str_ldr[L],
+                return { mnemonic : this.str_ldr[L] + this.__size(S, size),
                          op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " - #0x" + imm8.toString(16) + "]",
                          skip : true };
             }
@@ -427,7 +462,7 @@ class Arm {
                 // Rn + shifted register
                 var shift = (instr_2 >> 3) & 3;
                 var Rm = instr_2 & 0x7;
-                return { mnemonic : this.str_ldr[L],
+                return { mnemonic : this.str_ldr[L] + this.__size(S, size),
                          op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " + " + reg_name(Rm) + " shr " + shift.toString(16) + "]",
                          skip : true };
             }
@@ -441,7 +476,7 @@ class Arm {
     // --------S UxxL Rn   Rt
 
     __size(S, size) {
-        if (size == 2) return "";
+        if (size == 0) return "";
         if (size == 1 && S == 0) return ".B";
         if (size == 1 && S == 1) return ".BS";
         if (size == 2 && S == 0) return ".W";
