@@ -178,7 +178,7 @@ class Arm {
         //console.log(pc.toString(16), "-->", instr.toString(16), instr_f000.toString(16), instr_f800.toString(16));
 
         if (instr_f000 == 0x0000) { // lsl/lsr rd/rn, #imm8
-            var shift = (instr >> 6) & 5;
+            var shift = (instr >> 6) & 0x1f;
             var op = (instr >> 11) & 1;
             if (do_execute) {
                 if (op == 0)
@@ -259,7 +259,27 @@ class Arm {
         }
         else if (instr_ff00 == 0x4000) { // AND | EOR | LSL | LSR rd, rn
             var op = (instr >> 6) & 3;
-            return { mnemonic : this.and_eor[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
+            if (do_execute) {
+                switch ( op ) {
+                    case 0: // AND
+                        this.status.registers[Rd] = this.status.registers[Rd] & this.status.registers[Rn];    
+                        break;
+                    case 1: // EOR
+                        this.status.registers[Rd] = this.status.registers[Rd] ^ this.status.registers[Rn];
+                        break;
+                    case 2: // LSL
+                        this.status.registers[Rd] = this.status.registers[Rd] << this.status.registers[Rn];
+                        break;
+                    case 3: // LSR
+                        this.status.registers[Rd] = this.status.registers[Rd] >>> this.status.registers[Rn];
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.and_eor[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ff00 == 0x4100) { // ASR | ADC | SBC | ROR rd, rn
             var op = (instr >> 6) & 3;
