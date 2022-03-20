@@ -9,7 +9,7 @@ function reg_name(n) {
     return "R" + n;
 }
 
-
+const REG_LIMIT = 0xffffffff;
 
 class Arm {
 
@@ -248,9 +248,9 @@ class Arm {
             var r = (instr >> 8) & 7;
             var op = (instr >> 11) & 1;
             if (do_execute) {
-                if (op == 0)
+                if (op == 0) // ADD
                     this.status.registers[r] = (this.status.registers[r] + imm8) & 0xffffffff;
-                else
+                else // SUB
                     this.status.registers[r] = (this.status.registers[r] - imm8) & 0xffffffff;
                 return { ok : true };
             }
@@ -268,10 +268,10 @@ class Arm {
                         this.status.registers[Rd] = this.status.registers[Rd] ^ this.status.registers[Rn];
                         break;
                     case 2: // LSL
-                        this.status.registers[Rd] = this.status.registers[Rd] << this.status.registers[Rn];
+                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSL", this.status.registers[Rn]);
                         break;
                     case 3: // LSR
-                        this.status.registers[Rd] = this.status.registers[Rd] >>> this.status.registers[Rn];
+                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSR", this.status.registers[Rn]);
                         break;
                     default:
                         break;
@@ -283,7 +283,29 @@ class Arm {
         }
         else if (instr_ff00 == 0x4100) { // ASR | ADC | SBC | ROR rd, rn
             var op = (instr >> 6) & 3;
-            return { mnemonic : this.asr_adc[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
+            if( do_execute ) {
+                switch ( op ) {
+                    case 0: // ASR
+                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "ASR", this.status.registers[Rn]);
+                        break;
+                    case 1: // ADC
+                        this.status.registers[Rd] = ( this.status.registers[Rd] + this.status.registers[Rn] + this.status.c ) & 0xffffffff;
+                        (this.status.registers[Rd] > REG_LIMIT) ? this.status.c = 1 : this.status.c = 0;
+                        break;
+                    case 2: // SBC
+                        this.status.registers[Rd] = ( this.status.registers[Rd] - this.status.registers[Rn] - !(this.status.c) ) & 0xffffffff;
+                        (this.status.registers[Rd] < this.status.registers[Rn]) ? this.status.c = 0 : this.status.c = 1; // Borrow = !carry
+                        break;
+                    case 3: // ROR
+                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "ROR", this.status.registers[Rn]);
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.asr_adc[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ff00 == 0x4200) { // TST | NEG | CMP | CMN rd, rn
             var op = (instr >> 6) & 3;
