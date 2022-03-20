@@ -34,76 +34,99 @@
     <button id="reset" class="key-button reset-button red">RESET HALT</button>
     <button id="run" class="key-button run-button blue">RUN</button>
     <button id="step" class="key-button step-button blue">STEP</button>
-    <div id="disasm-box" class="disasm-box"></div>
-    <div id="registrer-box" class="register-box">
+    <div id="disasm-box" class="disasm-box box"></div>
+    <div id="registrer-box" class="register-box box">
       <table>
         <tr><td></td>
-          <td class="register-title">Hex</td>
-          <td class="register-title">Dec</td></tr>
+          <td class="register-title table-title">Hex</td>
+          <td class="register-title table-title">Dec</td></tr>
 
-        <tr><td class="register-name">R0</td>
-          <td id="r0-hex" class="register-value">0x00000000</td>
-          <td id="r0-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R0</td>
+          <td id="r0-hex" class="register-value table-value">0x00000000</td>
+          <td id="r0-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R1</td>
-          <td id="r1-hex" class="register-value">0x00000000</td>
-          <td id="r1-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R1</td>
+          <td id="r1-hex" class="register-value table-value">0x00000000</td>
+          <td id="r1-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R2</td>
-          <td id="r2-hex" class="register-value">0x00000000</td>
-          <td id="r2-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R2</td>
+          <td id="r2-hex" class="register-value table-value">0x00000000</td>
+          <td id="r2-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R3</td>
-          <td id="r3-hex" class="register-value">0x00000000</td>
-          <td id="r3-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R3</td>
+          <td id="r3-hex" class="register-value table-value">0x00000000</td>
+          <td id="r3-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R4</td>
-          <td id="r4-hex" class="register-value">0x00000000</td>
-          <td id="r4-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R4</td>
+          <td id="r4-hex" class="register-value table-value">0x00000000</td>
+          <td id="r4-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R5</td>
-          <td id="r5-hex" class="register-value">0x00000000</td>
-          <td id="r5-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R5</td>
+          <td id="r5-hex" class="register-value table-value">0x00000000</td>
+          <td id="r5-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R6</td>
-          <td id="r6-hex" class="register-value">0x00000000</td>
-          <td id="r6-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R6</td>
+          <td id="r6-hex" class="register-value table-value">0x00000000</td>
+          <td id="r6-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R7</td>
-          <td id="r7-hex" class="register-value">0x00000000</td>
-          <td id="r7-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R7</td>
+          <td id="r7-hex" class="register-value table-value">0x00000000</td>
+          <td id="r7-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R8</td>
-          <td id="r8-hex" class="register-value">0x00000000</td>
-          <td id="r8-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R8</td>
+          <td id="r8-hex" class="register-value table-value">0x00000000</td>
+          <td id="r8-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R9</td>
-          <td id="r9-hex" class="register-value">0x00000000</td>
-          <td id="r9-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R9</td>
+          <td id="r9-hex" class="register-value table-value">0x00000000</td>
+          <td id="r9-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R10</td>
-          <td id="r10-hex" class="register-value">0x00000000</td>
-          <td id="r10-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R10</td>
+          <td id="r10-hex" class="register-value table-value">0x00000000</td>
+          <td id="r10-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R11</td>
-          <td id="r11-hex" class="register-value">0x00000000</td>
-          <td id="r11-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R11</td>
+          <td id="r11-hex" class="register-value table-value">0x00000000</td>
+          <td id="r11-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R12</td>
-          <td id="r12-hex" class="register-value">0x00000000</td>
-          <td id="r12-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R12</td>
+          <td id="r12-hex" class="register-value table-value">0x00000000</td>
+          <td id="r12-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R13</td>
-          <td id="r13-hex" class="register-value">0x00000000</td>
-          <td id="r13-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R13</td>
+          <td id="r13-hex" class="register-value table-value">0x00000000</td>
+          <td id="r13-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R14</td>
-          <td id="r14-hex" class="register-value">0x00000000</td>
-          <td id="r14-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R14</td>
+          <td id="r14-hex" class="register-value table-value">0x00000000</td>
+          <td id="r14-dec" class="register-value table-value">0</td></tr>
 
-        <tr><td class="register-name">R15</td>
-          <td id="r15-hex" class="register-value">0x00000000</td>
-          <td id="r15-dec" class="register-value">0</td></tr>
+        <tr><td class="register-name table-name">R15</td>
+          <td id="r15-hex" class="register-value table-value">0x00000000</td>
+          <td id="r15-dec" class="register-value table-value">0</td></tr>
+      </table>
+    </div>
+    <div id="flags-box" class="flags-box box">
+      <table>
+        <tbody><tr><td class="flags-title table-title">Flags</td>
+          <td class="flags-title table-title">Value</td>
+          </tr>
+        <tr><td class="flags-name table-name">N</td>
+          <td id="flag-n" class="flags-value table-value">0</td>
+          </tr>
+
+        <tr><td class="flags-name table-name">Z</td>
+          <td id="flag-z" class="flags-value table-value">0</td>
+          </tr>
+
+        <tr><td class="flags-name table-name">C</td>
+          <td id="flag-c" class="flags-value table-value">0</td>
+          </tr>
+
+        <tr><td class="flags-name table-name">V</td>
+          <td id="flag-v" class="flags-value table-value">0</td>
+          </tr>
+        </tbody>
       </table>
     </div>
   </div>
