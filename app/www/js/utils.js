@@ -21,6 +21,99 @@ function array_to_uint(a) {
 }
 
 /**
+ * Function that took two integers returns the overflow.
+ * @param {number} x First operand 
+ * @param {number} y Second operand
+ * @param {string} res Result of the sum or difference between x and y
+ */
+function overflowFrom(x, y, res) {
+    let x_bit = x >>> 31;
+    let y_bit = y >>> 31;
+    let res_bit = res >>> 31;
+    return !!((x_bit == y_bit) && (res_bit != x_bit & res_bit != y_bit) && (res > 0x80000000-y || res < -0x80000000+y));
+}
+
+function isZero(n){
+    return n == 0 ? true: false;
+}
+
+function isNeg(n){
+    return !!(( n >>> (31) ) & 0x1);
+}
+
+/**
+ * Add and update flags
+ * @returns [result, c, v, n, z]
+ */
+function add_c(x, y) {
+	var result, c, v, n, z;
+    result = (x+y);
+    v = overflowFrom(x,y,result);
+ 	if((result>>>0) > REG_LIMIT)
+        c = true;
+    else 
+        c = false;
+    result &= 0xffffffff;
+    z = isZero(result);
+    n = isNeg(result);
+	return [result, c, v, n, z];
+}
+
+/**
+ * Add + carryF and update flags
+ * @returns [result, c, v, n, z]
+ */
+ function adc_c(x, y, c_in) {
+	var result, c_out, v, n, z;
+    result = (x+y+c_in);
+    v = overflowFrom(x,y+c_in,result);
+ 	if((result>>>0) > REG_LIMIT)
+        c_out = true;
+    else 
+        c_out = false;
+    result &= 0xffffffff;
+    z = isZero(result);
+    n = isNeg(result);
+	return [result, c_out, v, n, z];
+}
+
+/**
+ * Sub and update flags
+ * @returns [result, c, v, n, z]
+ */
+function sub_c(x,y){
+	var result, c, v, n, z;
+    result = (x-y);
+    v = overflowFrom(x,y,result);
+    if(x < y)
+        c = false;
+    else 
+  	    c = true;
+    result &= 0xffffffff;
+    z = isZero(result);
+    n = isNeg(result);
+	return [result, c, v, n, z];
+}
+
+/**
+ * Sub - carryF and update flags
+ * @returns [result, c, v, n, z]
+ */
+ function sbc_c(x,y, c_in){
+	var result, c_out, v, n, z;
+    result = (x-y-c_in);
+    v = overflowFrom(x,y-c_in,result);
+    if(x < y)
+        c_out = false;
+    else 
+        c_out = true;
+    result &= 0xffffffff;
+    z = isZero(result);
+    n = isNeg(result);
+	return [result, c_out, v, n, z];
+}
+
+/**
  * Shift operations
  * @param {number} value Number to shift
  * @param {string} type Mnemonic instruction: LSL, LSR, ASR, ROR

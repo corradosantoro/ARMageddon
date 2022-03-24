@@ -182,9 +182,9 @@ class Arm {
             var op = (instr >> 11) & 1;
             if (do_execute) {
                 if (op == 0)
-                    this.status.registers[Rd] = (this.status.registers[Rn] << shift) & 0xffffffff;
+                    [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSL", shift);
                 else
-                    this.status.registers[Rd] = this.status.registers[Rn] >>> shift;
+                    [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSR", shift);
                 return { ok : true };
             }
             else
@@ -193,7 +193,7 @@ class Arm {
         else if (instr_f800 == 0x1000) { // asr rd/rn, #imm8
             var shift = (instr >> 6) & 5;
             if (do_execute) {
-                this.status.registers[Rd] = this.status.registers[Rn] >> shift;
+                [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rn], "ASR", shift);
                 return { ok : true };
             }
             else
@@ -203,9 +203,9 @@ class Arm {
             var op = (instr >> 9) & 1;
             if (do_execute) {
                 if (op == 0)
-                    this.status.registers[Rd] = (this.status.registers[Rn] + this.status.registers[Rm]) & 0xffffffff;
+                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rn], this.status.registers[Rm]);
                 else
-                    this.status.registers[Rd] = (this.status.registers[Rn] - this.status.registers[Rm]) & 0xffffffff;
+                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[Rn], this.status.registers[Rm]);
                 return { ok : true };
             }
             else
@@ -216,9 +216,9 @@ class Arm {
             var op = (instr >> 9) & 1;
             if (do_execute) {
                 if (op == 0)
-                    this.status.registers[Rd] = (this.status.registers[Rn] + Rm) & 0xffffffff;
+                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rn], Rm);
                 else
-                    this.status.registers[Rd] = (this.status.registers[Rn] - Rm) & 0xffffffff;
+                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[Rn], Rm);
                 return { ok : true };
             }
             else
@@ -234,9 +234,7 @@ class Arm {
                     this.status.registers[r] = imm8;
                 }
                 else {
-                    this.status.z = (this.status.registers[r] == imm8);
-                    //status.registers[Rd] = (status.registers[Rn] - Rm) & 0xffffffff;
-                    //COMPARE & update program status word
+                    [, this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[r], imm8);
                 }
                 return { ok : true };
             }
@@ -249,10 +247,10 @@ class Arm {
             var op = (instr >> 11) & 1;
             if (do_execute) {
                 if (op == 0) // ADD
-                    this.status.registers[r] = (this.status.registers[r] + imm8) & 0xffffffff;
+                    [this.status.registers[r], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[r], imm8);
                 else // SUB
-                    this.status.registers[r] = (this.status.registers[r] - imm8) & 0xffffffff;
-                return { ok : true };
+                    [this.status.registers[r], this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[r], imm8);
+                    return { ok : true };
             }
             else
                 return { mnemonic : this.add_sub[op], op_str : reg_name(r) + ", #" + imm8 };
@@ -262,7 +260,7 @@ class Arm {
             if (do_execute) {
                 switch ( op ) {
                     case 0: // AND
-                        this.status.registers[Rd] = this.status.registers[Rd] & this.status.registers[Rn];    
+                        this.status.registers[Rd] = this.status.registers[Rd] & this.status.registers[Rn];
                         break;
                     case 1: // EOR
                         this.status.registers[Rd] = this.status.registers[Rd] ^ this.status.registers[Rn];
@@ -289,12 +287,12 @@ class Arm {
                         [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "ASR", this.status.registers[Rn]);
                         break;
                     case 1: // ADC
-                        this.status.registers[Rd] = ( this.status.registers[Rd] + this.status.registers[Rn] + this.status.c ) & 0xffffffff;
-                        (this.status.registers[Rd] > REG_LIMIT) ? this.status.c = 1 : this.status.c = 0;
+                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = adc_c(this.status.registers[Rd], 
+                            this.status.registers[Rd], this.status.c);
                         break;
                     case 2: // SBC
-                        this.status.registers[Rd] = ( this.status.registers[Rd] - this.status.registers[Rn] - !(this.status.c) ) & 0xffffffff;
-                        (this.status.registers[Rd] < this.status.registers[Rn]) ? this.status.c = 0 : this.status.c = 1; // Borrow = !carry
+                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = sbc_c(this.status.registers[Rd], 
+                            this.status.registers[Rd], !(this.status.c)); 
                         break;
                     case 3: // ROR
                         [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "ROR", this.status.registers[Rn]);
