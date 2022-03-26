@@ -230,12 +230,10 @@ class Arm {
             var r = (instr >> 8) & 7;
             var op = (instr >> 11) & 1;
             if (do_execute) {
-                if (op == 0) {
+                if (op == 0) 
                     this.status.registers[r] = imm8;
-                }
-                else {
-                    [, this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[r], imm8);
-                }
+                else
+                    [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[r], imm8, "CMP");
                 return { ok : true };
             }
             else
@@ -260,10 +258,10 @@ class Arm {
             if (do_execute) {
                 switch ( op ) {
                     case 0: // AND
-                        this.status.registers[Rd] = this.status.registers[Rd] & this.status.registers[Rn];
+                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "AND");
                         break;
-                    case 1: // EOR
-                        this.status.registers[Rd] = this.status.registers[Rd] ^ this.status.registers[Rn];
+                    case 1: // EOR  
+                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "EOR");
                         break;
                     case 2: // LSL
                         [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSL", this.status.registers[Rn]);
@@ -307,10 +305,50 @@ class Arm {
         }
         else if (instr_ff00 == 0x4200) { // TST | NEG | CMP | CMN rd, rn
             var op = (instr >> 6) & 3;
-            return { mnemonic : this.tst_neg[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
+            if( do_execute ){
+                switch (op) { 
+                    case 0: // TST
+                        [, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "AND");
+                        break;
+                    case 1: // NEG
+                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "NEG");
+                        break;
+                    case 2: // CMP
+                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "CMP");
+                        break;
+                    case 3: // CMN
+                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "CMN");
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.tst_neg[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ff00 == 0x4300) { // ORR | MUL | BIC | MVN rd, rn
             var op = (instr >> 6) & 3;
+            if( do_execute ){
+                switch (op) { 
+                    case 0: // ORR
+                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "ORR");
+                        break;
+                    case 1: // MUL
+                        [this.status.registers[Rd], this.status.n, this.status.z] = mul_c(this.status.registers[Rd], this.status.registers[Rn]);
+                        break;
+                    case 2: // BIC
+                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "BIC");
+                        break;
+                    case 3: // MVN
+                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "MVN");
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
             return { mnemonic : this.orr_mul[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x4600) { // MOV rd, rn
@@ -322,34 +360,79 @@ class Arm {
                 return { mnemonic : "MOV", op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x4440) { // ADD Rd, R(n+8)
-            return { mnemonic : "ADD", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
+            if(do_execute){
+                [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rd], this.status.registers[Rn + 8]);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "ADD", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4640) { // MOV Rd, R(n+8)
-            return { mnemonic : "MOV", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                this.status.registers[Rd] = this.status.registers[Rn + 8];
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "MOV", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4480) { // ADD R(d+8), Rn
-            return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
+            if(do_execute){
+                [this.status.registers[Rd + 8], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x4680) { // MOV R(d+8), Rn
-            return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
+            if (do_execute) {
+                this.status.registers[Rd + 8] = this.status.registers[Rn];
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x44c0) { // ADD R(d+8), R(n+8)
-            return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
+            if(do_execute){
+                [this.status.registers[Rd + 8], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x46c0) { // MOV R(d+8), R(n+8)
-            return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                this.status.registers[Rd + 8] = this.status.registers[Rn + 8];
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4540) { // CMP Rd, R(n+8)
-            return { mnemonic : "CMP", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn + 8], "CMP");
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "CMP", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4580) { // CMP R(d+8), Rn
-            return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
+            if (do_execute) {
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd + 8], this.status.registers[Rn], "CMP");
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x45c0) { // CMP R(d+8), R(n+8)
-            return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd + 8], this.status.registers[Rn + 8], "CMP");
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ff00 == 0x4700) { // BX | BLX Rm
-            var r = (instr >> 6) & 0xf;
+            var r = (instr >> 3) & 0xf;
             var op = (instr >> 7) & 1;
             return { mnemonic : this.bx_blx[op], op_str : reg_name(r) };
         }

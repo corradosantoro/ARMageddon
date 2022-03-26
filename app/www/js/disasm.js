@@ -83,7 +83,8 @@ var Disassembler = {
             var rect = line_element.getBoundingClientRect();
             var rect_parent = this.disasmBox.getBoundingClientRect();
             var pos = line * rect.height;
-            this.disasmBox.scrollTop = pos;
+            if( line % 22 == 0 )
+                this.disasmBox.scrollTop = pos;
             line_element.style.backgroundColor = "#f00";
             this.currentHighlighted = line_element;
         }

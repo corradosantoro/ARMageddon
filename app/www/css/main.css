@@ -108,6 +108,7 @@ a.disabled {
   width: 465px;
   height: 464px;
   overflow-y: scroll;
+  scroll-behavior: smooth;
  }
 
 .disasm-line {

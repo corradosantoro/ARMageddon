@@ -114,6 +114,59 @@ function sub_c(x,y){
 }
 
 /**
+ * Mul and update flags N and Z
+ * @returns [result, n, z]
+ */
+function mul_c(x, y){
+    var result, n, z;
+    result = x*y;
+    result &= 0xffffffff;
+    n = isNeg(result);    
+    z = isZero(result); 
+    return [result, n, z];
+}
+
+/**
+ * Bitwise operations
+ * @param {string} type Mnemonic instruction: AND, EOR, ORR, BIC, NEG, CMP, CMN, MVN
+ * @returns [result, n, z] or [result, c, v, n, z]
+ */
+function bitwiseOp(first,second, type){
+    var result, c, v, n, z;
+    switch (type) {
+        case "AND":
+            result = first & second;
+            break;
+        case "EOR":
+            result = first ^ second;
+            break;
+        case "ORR":
+            result = first | second;
+            break;
+        case "BIC":
+            result = first & (~second);
+            break;
+        case "NEG":
+            [result, c, v, n, z] = sub_c(0, second);
+            return [result, c, v, n, z];
+        case "CMP":
+            [result, c, v, n, z] = sub_c(first, second);
+            return [result, c, v, n, z];
+        case "CMN":
+            [result, c, v, n, z] = add_c(first, second);
+            return [result, c, v, n, z];
+        case "MVN":
+            result = (~second);
+            break;            
+        default:
+            break;
+    }
+    n = isNeg(result);    
+    z = isZero(result); 
+    return [result, n, z];
+}
+
+/**
  * Shift operations
  * @param {number} value Number to shift
  * @param {string} type Mnemonic instruction: LSL, LSR, ASR, ROR
@@ -141,7 +194,6 @@ function shift_c(value, type, n_shift, c_in) {
         default:
             break;
     }
-
     return [result, c_out];
 }
 
