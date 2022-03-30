@@ -45,6 +45,7 @@ $(document).ready(function () {
         reset();
         RegisterView.update(arm.get_status());
         FlagsView.update(arm.get_status());
+        Disassembler.lineHighlight(arm.get_pc());
     });
 
     $('#run').on('click', function(evt) {
@@ -68,7 +69,8 @@ $(document).ready(function () {
 
     //arm_core = new STM32F4();
     arm_core = new BareArmPlatform();
-    arm_core.add_region(new Region(0x08000000, 2**16, Region.ROM))
+    arm_core.add_region(new Region(0x08000000, 2**16, Region.ROM));
+    arm_core.add_region(new Region(0x20000000, 98304, Region.RAM));
 
     arm = new Arm(arm_core, ARM_MODE.THUMB);
 

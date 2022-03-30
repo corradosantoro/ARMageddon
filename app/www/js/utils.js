@@ -20,6 +20,28 @@ function array_to_uint(a) {
     return res;
 }
 
+function numb_to_byte_array(numb, data_type){ // data_type byte B, halfword H, word
+    var byteArray;
+    switch (data_type) {
+        case 2: // B
+            byteArray = [0];
+            break;
+        case 1: // H
+            byteArray = [0, 0];
+            break;
+        default: // W
+            byteArray = [0, 0, 0, 0];
+            break;
+    }
+    for ( var index = 0; index < byteArray.length; index ++ ) {
+        var byte = numb & 0xff;
+        byteArray [ index ] = byte;
+        numb = (numb - byte) / 256 ;
+    }
+    console.log("numb_to_byte_array ", byteArray, data_type);
+    return byteArray;
+};
+
 /**
  * Function that took two integers returns the overflow.
  * @param {number} x First operand 

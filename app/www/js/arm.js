@@ -32,8 +32,8 @@ class Arm {
 
         this.bx_blx = [ "BX", "BLX" ];
 
-        this.str = [ "STR", "STR.W", "STR.B", "STR.SB" ];
-        this.ldr = [ "LDR", "STR.W", "LDR.B", "STR.SB" ];
+        this.str = [ "STR", "STR.H", "STR.B", "STR.SB" ];
+        this.ldr = [ "LDR", "LDR.H", "LDR.B", "LDR.SB" ];
         this.str_ldr = [ "STR", "LDR" ];
         this.sp_pc = [ "PC", "SP"];
         this.stmia_ldmia = [ "STMIA", "LDMIA"];
@@ -84,6 +84,59 @@ class Arm {
 
     get_status(r) {
         return this.status;
+    }
+
+    find_address(address, type){ // Type RAM0/ROM1
+        //console.log("to_address ", address.toString(16), this.half, (0x08000000 + address + this.half).toString(16), ((0x08000000 + address + this.half) & 0xfffffffe).toString(16)  );
+        //console.log(this.core.find_region(address));
+        let reg = this.core.find_region(address);
+        console.log("find_address| ", "address", address.toString(16), "half", this.half, "reg", reg);
+        if (reg)
+            return address;
+        else{
+            return this.to_address(address, type);
+        }  
+        //return ( (0x08000000 + address + this.half) & 0xfffffffe );
+    }
+
+    to_address(addr, type){
+        let reg = this.core.find_region_by_type(type);
+        let new_addr = (reg.base_address + addr) & 0xffffffff;
+        if( type == Region.ROM )
+            new_addr += this.half & 0xfffffffe;
+        console.log("to_address| ", "new_addr", new_addr.toString(16), "half", this.half, "reg", reg.type);
+        return (reg.can_access(new_addr) ? new_addr : undefined);
+    }
+    
+    store_addr(address, data, data_type){ // data_type byte B, halfword H, word
+        var addr = this.find_address(address, Region.RAM);
+        var data_bytes = [];
+        var regn, result; 
+        if( !addr ){
+            console.log("Invalid access at address 0x" + address.toString(16));
+            return { ok: false };
+        }
+        console.log("STD ", data_type);
+        data_bytes = numb_to_byte_array(data, data_type);
+        return this.core.find_region_by_type(Region.RAM).load_memory(data_bytes, addr);
+    }
+
+    load_add(address, data_type){ // data_type byte B, halfword H, word
+        var addr = this.find_address(address, Region.RAM);
+        var word;
+        switch (data_type) {
+            case 2: // B
+                word = this.core.find_region_by_type(Region.RAM).read_8(addr);
+                break;
+            case 1: // H
+                word = this.core.find_region_by_type(Region.RAM).read_16(addr);
+                break;
+            default: // W
+                word = this.core.find_region_by_type(Region.RAM).read_32(addr);
+                break;
+        }
+        console.log("LOAD ", word);
+        return word;
     }
 
     disassemble() {
@@ -432,9 +485,28 @@ class Arm {
                 return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ff00 == 0x4700) { // BX | BLX Rm
-            var r = (instr >> 3) & 0xf;
+            var r = (instr >> 3) & 0xf; // BLX R15 unpredictable
             var op = (instr >> 7) & 1;
-            return { mnemonic : this.bx_blx[op], op_str : reg_name(r) };
+            var t_bit = this.status.registers[r] & 0x1;
+            var address = this.status.registers[r] & 0xfffffffe;
+            var target = this.find_address(address, Region.ROM);
+            if (do_execute) {
+                //console.log(this.core.in_limit(target), target.toString(16), this.status.registers[14].toString(16), this.get_pc().toString(16));
+                if(!this.core.in_limit(target))
+                    return { ok: false }
+                if(op == 0){ // BX    
+                    this.status.registers[15] = target;
+                    //this.mode = t_bit; // Changing Mode -> ARM/THUMB
+                }
+                else{ // BLX
+                    this.status.registers[14] = this.get_pc();
+                    this.status.registers[15] = target;
+                    //this.mode = t_bit; // Changing Mode -> ARM/THUMB
+                } 
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.bx_blx[op], op_str : reg_name(r) };
         }
         else if (instr_f800 == 0x4800) { // LDR Rd, [pc, #imm * 4]
             var r = (instr >> 8) & 0x7;
@@ -442,33 +514,83 @@ class Arm {
             var target = pc + imm * 4;
             return { mnemonic : "LDR", op_str : reg_name(r) + ", [ #0x" + target.toString(16) + " ] ;; pc + #" + (imm*4) };
         }
-        else if (instr_f800 == 0x5000) { // STR pre
+        else if (instr_f800 == 0x5000) { // STR pre 
             var op = (instr >> 9) & 3;
-            return { mnemonic : this.str[op],
+            var address = this.status.registers[Rn] + this.status.registers[Rm]; 
+            if (do_execute) {
+                this.store_addr(address, this.status.registers[Rd], op);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str[op],
                      op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + reg_name(Rm) + "]" };
         }
         else if (instr_f800 == 0x5800) { // LDR pre
             var op = (instr >> 9) & 3;
-            return { mnemonic : this.ldr[op],
+            var address = this.status.registers[Rn] + this.status.registers[Rm]; 
+            if (do_execute) {
+                this.status.registers[Rd] = this.load_add(address, op);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.ldr[op],
                      op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + reg_name(Rm) + "]" };
         }
         else if (instr_f000 == 0x6000) { // STR | LDR Ld, [Ln, #immed*4]
-            var op = (instr >> 11) & 1;
+            var op = (instr >> 11) & 0x1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op],
-                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm*4).toString(16) + "]" };
+            var address = this.status.registers[Rn] + imm; 
+            if (do_execute) {
+                switch (op) {
+                    case 0: // STR
+                        this.store_addr(address, this.status.registers[Rd], 0);
+                        break;
+                    case 1: // LDR
+                        this.status.registers[Rd] = this.load_add(address, 0);
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str_ldr[op],
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + ", #" + (imm*4).toString(16) + "]" };
         }
         else if (instr_f000 == 0x7000) { // STR.B | LDR.B Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op] + ".B",
-                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm).toString(16) + "]" };
+            var address = this.status.registers[Rn] + imm; 
+            if (do_execute) {
+                switch (op) {
+                    case 0: // STR.B
+                        this.store_addr(address, this.status.registers[Rd], 2);
+                        break;
+                    case 1: // LDR.B
+                        this.status.registers[Rd] = this.load_add(address, 2);
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str_ldr[op] + ".B",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + ", #" + (imm).toString(16) + "]" };
         }
-        else if (instr_f000 == 0x8000) { // STR.W | LDR.W Ld, [Ln, #immed]
+        else if (instr_f000 == 0x8000) { // STR.H | LDR.H Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op] + ".W",
-                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm*2).toString(16) + "]" };
+            if (do_execute) {
+                switch (op) {
+                    case 0: // STR
+                        this.store_addr(address, this.status.registers[Rd], 1);
+                        break;
+                    case 1: // LDR
+                        this.status.registers[Rd] = this.load_add(address, 1);
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str_ldr[op] + ".H",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + ", #" + (imm*2).toString(16) + "]" };
         }
         else if (instr_f000 == 0x9000) { // STR | LDR from/to SP 
             var op = (instr >> 11) & 1;
