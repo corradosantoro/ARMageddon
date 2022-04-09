@@ -38,7 +38,6 @@ function numb_to_byte_array(numb, data_type){ // data_type byte B, halfword H, w
         byteArray [ index ] = byte;
         numb = (numb - byte) / 256 ;
     }
-    console.log("numb_to_byte_array ", byteArray, data_type);
     return byteArray;
 };
 
@@ -82,6 +81,14 @@ function add_c(x, y) {
 }
 
 /**
+ * Add
+ */
+ function add(x, y) {
+	var [result] = add_c(x,y);
+	return result;
+}
+
+/**
  * Add + carryF and update flags
  * @returns [result, c, v, n, z]
  */
@@ -97,6 +104,14 @@ function add_c(x, y) {
     z = isZero(result);
     n = isNeg(result);
 	return [result, c_out, v, n, z];
+}
+
+/**
+ * Add + carryF 
+ */
+ function adc(x, y, c_in) {
+    var [result] = adc_c(x, y, c_in);
+    return result;
 }
 
 /**
@@ -118,6 +133,14 @@ function sub_c(x,y){
 }
 
 /**
+ * Sub 
+ */
+ function sub(x,y){
+	var [result] = sub_c(x, y);
+    return result;
+}
+
+/**
  * Sub - carryF and update flags
  * @returns [result, c, v, n, z]
  */
@@ -136,6 +159,14 @@ function sub_c(x,y){
 }
 
 /**
+ * Sub - carryF
+ */
+ function sbc(x,y, c_in){
+	var [result] = sbc_c(x, y, c_in);
+    return result;
+}
+
+/**
  * Mul and update flags N and Z
  * @returns [result, n, z]
  */
@@ -149,11 +180,19 @@ function mul_c(x, y){
 }
 
 /**
- * Bitwise operations
+ * Mul 
+ */
+ function mul(x, y){
+    var [result] = mul(x, y);
+    return result;
+}
+
+/**
+ * Bitwise operations and update flags
  * @param {string} type Mnemonic instruction: AND, EOR, ORR, BIC, NEG, CMP, CMN, MVN
  * @returns [result, n, z] or [result, c, v, n, z]
  */
-function bitwiseOp(first,second, type){
+function bitwiseOp_c(first,second, type){
     var result, c, v, n, z;
     switch (type) {
         case "AND":
@@ -189,7 +228,15 @@ function bitwiseOp(first,second, type){
 }
 
 /**
- * Shift operations
+ * Bitwise operations
+ */
+ function bitwiseOp(first,second, type){
+    var [result] = bitwiseOp_c(first,second, type);
+    return result;
+}
+
+/**
+ * Shift operations and update flags
  * @param {number} value Number to shift
  * @param {string} type Mnemonic instruction: LSL, LSR, ASR, ROR
  * @param {number} n_shift Numbers of shifts
@@ -217,6 +264,14 @@ function shift_c(value, type, n_shift, c_in) {
             break;
     }
     return [result, c_out];
+}
+
+/**
+ * Shift operations
+ */
+ function shift(value, type, n_shift, c_in) {
+    var [result] = shift_c(value, type, n_shift, c_in);
+    return result;
 }
 
 /**

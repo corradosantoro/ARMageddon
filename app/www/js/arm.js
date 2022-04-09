@@ -87,16 +87,12 @@ class Arm {
     }
 
     find_address(address, type){ // Type RAM0/ROM1
-        //console.log("to_address ", address.toString(16), this.half, (0x08000000 + address + this.half).toString(16), ((0x08000000 + address + this.half) & 0xfffffffe).toString(16)  );
-        //console.log(this.core.find_region(address));
         let reg = this.core.find_region(address);
-        console.log("find_address| ", "address", address.toString(16), "half", this.half, "reg", reg);
         if (reg)
             return address;
         else{
             return this.to_address(address, type);
         }  
-        //return ( (0x08000000 + address + this.half) & 0xfffffffe );
     }
 
     to_address(addr, type){
@@ -104,7 +100,6 @@ class Arm {
         let new_addr = (reg.base_address + addr) & 0xffffffff;
         if( type == Region.ROM )
             new_addr += this.half & 0xfffffffe;
-        console.log("to_address| ", "new_addr", new_addr.toString(16), "half", this.half, "reg", reg.type);
         return (reg.can_access(new_addr) ? new_addr : undefined);
     }
     
@@ -113,10 +108,8 @@ class Arm {
         var data_bytes = [];
         var regn, result; 
         if( !addr ){
-            console.log("Invalid access at address 0x" + address.toString(16));
             return { ok: false };
         }
-        console.log("STD ", data_type);
         data_bytes = numb_to_byte_array(data, data_type);
         return this.core.find_region_by_type(Region.RAM).load_memory(data_bytes, addr);
     }
@@ -135,7 +128,6 @@ class Arm {
                 word = this.core.find_region_by_type(Region.RAM).read_32(addr);
                 break;
         }
-        console.log("LOAD ", word);
         return word;
     }
 
@@ -231,34 +223,34 @@ class Arm {
         //console.log(pc.toString(16), "-->", instr.toString(16), instr_f000.toString(16), instr_f800.toString(16));
 
         if (instr_f000 == 0x0000) { // lsl/lsr rd/rn, #imm8
-            var shift = (instr >> 6) & 0x1f;
+            var shift_n = (instr >> 6) & 0x1f;
             var op = (instr >> 11) & 1;
             if (do_execute) {
                 if (op == 0)
-                    [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSL", shift);
+                    this.status.registers[Rd] = shift(this.status.registers[Rd], "LSL", shift_n);
                 else
-                    [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSR", shift);
+                    this.status.registers[Rd] = shift(this.status.registers[Rd], "LSR", shift_n);
                 return { ok : true };
             }
             else
-                return { mnemonic : this.shift_rolls[op], op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift };
+                return { mnemonic : this.shift_rolls[op], op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift_n };
         }
         else if (instr_f800 == 0x1000) { // asr rd/rn, #imm8
-            var shift = (instr >> 6) & 5;
+            var shift_n = (instr >> 6) & 5;
             if (do_execute) {
-                [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rn], "ASR", shift);
+                [this.status.registers[Rd]] = shift(this.status.registers[Rn], "ASR", shift_n);
                 return { ok : true };
             }
             else
-                return { mnemonic : "asr", op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift };
+                return { mnemonic : "asr", op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift_n };
         }
         else if ((instr & 0xfc00) == 0x1800) { // add, subtract registers
             var op = (instr >> 9) & 1;
             if (do_execute) {
                 if (op == 0)
-                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rn], this.status.registers[Rm]);
+                    this.status.registers[Rd] = add(this.status.registers[Rn], this.status.registers[Rm]);
                 else
-                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[Rn], this.status.registers[Rm]);
+                    this.status.registers[Rd] = sub(this.status.registers[Rn], this.status.registers[Rm]);
                 return { ok : true };
             }
             else
@@ -269,9 +261,9 @@ class Arm {
             var op = (instr >> 9) & 1;
             if (do_execute) {
                 if (op == 0)
-                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rn], Rm);
+                    this.status.registers[Rd] = add(this.status.registers[Rn], Rm);
                 else
-                    [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[Rn], Rm);
+                    this.status.registers[Rd] = sub(this.status.registers[Rn], Rm);
                 return { ok : true };
             }
             else
@@ -286,7 +278,7 @@ class Arm {
                 if (op == 0) 
                     this.status.registers[r] = imm8;
                 else
-                    [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[r], imm8, "CMP");
+                    [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[r], imm8, "CMP");
                 return { ok : true };
             }
             else
@@ -298,9 +290,9 @@ class Arm {
             var op = (instr >> 11) & 1;
             if (do_execute) {
                 if (op == 0) // ADD
-                    [this.status.registers[r], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[r], imm8);
+                    this.status.registers[r] = add(this.status.registers[r], imm8);
                 else // SUB
-                    [this.status.registers[r], this.status.c, this.status.v, this.status.n, this.status.z] = sub_c(this.status.registers[r], imm8);
+                    this.status.registers[r] = sub(this.status.registers[r], imm8);
                     return { ok : true };
             }
             else
@@ -311,16 +303,16 @@ class Arm {
             if (do_execute) {
                 switch ( op ) {
                     case 0: // AND
-                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "AND");
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "AND");
                         break;
                     case 1: // EOR  
-                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "EOR");
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "EOR");
                         break;
                     case 2: // LSL
-                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSL", this.status.registers[Rn]);
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "LSL", this.status.registers[Rn]);
                         break;
                     case 3: // LSR
-                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "LSR", this.status.registers[Rn]);
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "LSR", this.status.registers[Rn]);
                         break;
                     default:
                         break;
@@ -335,18 +327,16 @@ class Arm {
             if( do_execute ) {
                 switch ( op ) {
                     case 0: // ASR
-                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "ASR", this.status.registers[Rn]);
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "ASR", this.status.registers[Rn]);
                         break;
                     case 1: // ADC
-                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = adc_c(this.status.registers[Rd], 
-                            this.status.registers[Rd], this.status.c);
+                        this.status.registers[Rd] = adc(this.status.registers[Rd], this.status.registers[Rd], this.status.c);
                         break;
                     case 2: // SBC
-                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = sbc_c(this.status.registers[Rd], 
-                            this.status.registers[Rd], !(this.status.c)); 
+                        this.status.registers[Rd] = sbc(this.status.registers[Rd], this.status.registers[Rd], !(this.status.c)); 
                         break;
                     case 3: // ROR
-                        [this.status.registers[Rd], this.status.c] = shift_c(this.status.registers[Rd], "ROR", this.status.registers[Rn]);
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "ROR", this.status.registers[Rn]);
                         break;
                     default:
                         break;
@@ -361,16 +351,16 @@ class Arm {
             if( do_execute ){
                 switch (op) { 
                     case 0: // TST
-                        [, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "AND");
+                        [, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "AND");
                         break;
                     case 1: // NEG
-                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "NEG");
+                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "NEG");
                         break;
                     case 2: // CMP
-                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "CMP");
+                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "CMP");
                         break;
                     case 3: // CMN
-                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "CMN");
+                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "CMN");
                         break;
                     default:
                         break;
@@ -385,16 +375,16 @@ class Arm {
             if( do_execute ){
                 switch (op) { 
                     case 0: // ORR
-                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "ORR");
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "ORR");
                         break;
                     case 1: // MUL
-                        [this.status.registers[Rd], this.status.n, this.status.z] = mul_c(this.status.registers[Rd], this.status.registers[Rn]);
+                        this.status.registers[Rd] = mul(this.status.registers[Rd], this.status.registers[Rn]);
                         break;
                     case 2: // BIC
-                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "BIC");
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "BIC");
                         break;
                     case 3: // MVN
-                        [this.status.registers[Rd], this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "MVN");
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "MVN");
                         break;
                     default:
                         break;
@@ -414,7 +404,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x4440) { // ADD Rd, R(n+8)
             if(do_execute){
-                [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rd], this.status.registers[Rn + 8]);
+                this.status.registers[Rd] = add(this.status.registers[Rd], this.status.registers[Rn + 8]);
                 return { ok : true };
             }
             else
@@ -430,7 +420,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x4480) { // ADD R(d+8), Rn
             if(do_execute){
-                [this.status.registers[Rd + 8], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
+                this.status.registers[Rd + 8] = add(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
                 return { ok : true };
             }
             else
@@ -446,7 +436,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x44c0) { // ADD R(d+8), R(n+8)
             if(do_execute){
-                [this.status.registers[Rd + 8], this.status.c, this.status.v, this.status.n, this.status.z] = add_c(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
+                this.status.registers[Rd + 8] = add(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
                 return { ok : true };
             }
             else
@@ -462,7 +452,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x4540) { // CMP Rd, R(n+8)
             if (do_execute) {
-                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn + 8], "CMP");
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn + 8], "CMP");
                 return { ok : true };
             }
             else
@@ -470,7 +460,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x4580) { // CMP R(d+8), Rn
             if (do_execute) {
-                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd + 8], this.status.registers[Rn], "CMP");
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd + 8], this.status.registers[Rn], "CMP");
                 return { ok : true };
             }
             else
@@ -478,7 +468,7 @@ class Arm {
         }
         else if (instr_ffc0 == 0x45c0) { // CMP R(d+8), R(n+8)
             if (do_execute) {
-                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp(this.status.registers[Rd + 8], this.status.registers[Rn + 8], "CMP");
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd + 8], this.status.registers[Rn + 8], "CMP");
                 return { ok : true };
             }
             else
@@ -705,10 +695,10 @@ class Arm {
             }
             else if (subcode == 0) {
                 // Rn + shifted register
-                var shift = (instr_2 >> 3) & 3;
+                var shift_n = (instr_2 >> 3) & 3;
                 var Rm = instr_2 & 0x7;
                 return { mnemonic : this.str_ldr[L] + this.__size(S, size),
-                         op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " + " + reg_name(Rm) + " shr " + shift.toString(16) + "]",
+                         op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " + " + reg_name(Rm) + " shr " + shift_n.toString(16) + "]",
                          skip : true };
             }
             else
