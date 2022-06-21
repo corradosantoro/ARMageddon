@@ -14,12 +14,14 @@ function run() {
         if (arm.halted) {
             Indicators.halt_state(arm);
             RegisterView.update(arm.get_status());
+            FlagsView.update(arm.get_status());
             Disassembler.lineHighlight(arm.get_register(15));
             return;
         }
         ticks--;
     }
     RegisterView.update(arm.get_status());
+    FlagsView.update(arm.get_status());
     setTimeout(1, run);
 }
 
@@ -27,12 +29,14 @@ $(document).ready(function () {
     console.log('ARMageddon starting');
 
     RegisterView.init();
+    FlagsView.init();
 
     $('#open').on('click', function(evt) {
         FileOperations.open(function(binary) {
             arm_core.find_region_by_type(Region.ROM).load_memory(binary);
             reset();
             RegisterView.update(arm.get_status());
+            FlagsView.update(arm.get_status());
             Disassembler.update(arm);
         });
     });
@@ -40,6 +44,8 @@ $(document).ready(function () {
     $('#reset').on('click', function(evt) {
         reset();
         RegisterView.update(arm.get_status());
+        FlagsView.update(arm.get_status());
+        Disassembler.lineHighlight(arm.get_pc());
     });
 
     $('#run').on('click', function(evt) {
@@ -52,6 +58,7 @@ $(document).ready(function () {
             Indicators.step_state();
             arm.step();
             RegisterView.update(arm.get_status());
+            FlagsView.update(arm.get_status());
             Disassembler.lineHighlight(arm.get_pc());
         }
         else {
@@ -62,7 +69,8 @@ $(document).ready(function () {
 
     //arm_core = new STM32F4();
     arm_core = new BareArmPlatform();
-    arm_core.add_region(new Region(0x08000000, 2**16, Region.ROM))
+    arm_core.add_region(new Region(0x08000000, 2**16, Region.ROM));
+    arm_core.add_region(new Region(0x20000000, 98304, Region.RAM));
 
     arm = new Arm(arm_core, ARM_MODE.THUMB);
 

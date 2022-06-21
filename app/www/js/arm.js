@@ -9,7 +9,7 @@ function reg_name(n) {
     return "R" + n;
 }
 
-
+const REG_LIMIT = 0xffffffff;
 
 class Arm {
 
@@ -32,8 +32,8 @@ class Arm {
 
         this.bx_blx = [ "BX", "BLX" ];
 
-        this.str = [ "STR", "STR.W", "STR.B", "STR.SB" ];
-        this.ldr = [ "LDR", "STR.W", "LDR.B", "STR.SB" ];
+        this.str = [ "STR", "STR.H", "STR.B", "STR.SB" ];
+        this.ldr = [ "LDR", "LDR.H", "LDR.B", "LDR.SB" ];
         this.str_ldr = [ "STR", "LDR" ];
         this.sp_pc = [ "PC", "SP"];
         this.stmia_ldmia = [ "STMIA", "LDMIA"];
@@ -84,6 +84,51 @@ class Arm {
 
     get_status(r) {
         return this.status;
+    }
+
+    find_address(address, type){ // Type RAM0/ROM1
+        let reg = this.core.find_region(address);
+        if (reg)
+            return address;
+        else{
+            return this.to_address(address, type);
+        }  
+    }
+
+    to_address(addr, type){
+        let reg = this.core.find_region_by_type(type);
+        let new_addr = (reg.base_address + addr) & 0xffffffff;
+        if( type == Region.ROM )
+            new_addr += this.half & 0xfffffffe;
+        return (reg.can_access(new_addr) ? new_addr : undefined);
+    }
+    
+    store_addr(address, data, data_type){ // data_type byte B, halfword H, word
+        var addr = this.find_address(address, Region.RAM);
+        var data_bytes = [];
+        var regn, result; 
+        if( !addr ){
+            return { ok: false };
+        }
+        data_bytes = numb_to_byte_array(data, data_type);
+        return this.core.find_region_by_type(Region.RAM).load_memory(data_bytes, addr);
+    }
+
+    load_add(address, data_type){ // data_type byte B, halfword H, word
+        var addr = this.find_address(address, Region.RAM);
+        var word;
+        switch (data_type) {
+            case 2: // B
+                word = this.core.find_region_by_type(Region.RAM).read_8(addr);
+                break;
+            case 1: // H
+                word = this.core.find_region_by_type(Region.RAM).read_16(addr);
+                break;
+            default: // W
+                word = this.core.find_region_by_type(Region.RAM).read_32(addr);
+                break;
+        }
+        return word;
     }
 
     disassemble() {
@@ -178,34 +223,34 @@ class Arm {
         //console.log(pc.toString(16), "-->", instr.toString(16), instr_f000.toString(16), instr_f800.toString(16));
 
         if (instr_f000 == 0x0000) { // lsl/lsr rd/rn, #imm8
-            var shift = (instr >> 6) & 5;
+            var shift_n = (instr >> 6) & 0x1f;
             var op = (instr >> 11) & 1;
             if (do_execute) {
                 if (op == 0)
-                    this.status.registers[Rd] = (this.status.registers[Rn] << shift) & 0xffffffff;
+                    this.status.registers[Rd] = shift(this.status.registers[Rd], "LSL", shift_n);
                 else
-                    this.status.registers[Rd] = this.status.registers[Rn] >>> shift;
+                    this.status.registers[Rd] = shift(this.status.registers[Rd], "LSR", shift_n);
                 return { ok : true };
             }
             else
-                return { mnemonic : this.shift_rolls[op], op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift };
+                return { mnemonic : this.shift_rolls[op], op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift_n };
         }
         else if (instr_f800 == 0x1000) { // asr rd/rn, #imm8
-            var shift = (instr >> 6) & 5;
+            var shift_n = (instr >> 6) & 5;
             if (do_execute) {
-                this.status.registers[Rd] = this.status.registers[Rn] >> shift;
+                [this.status.registers[Rd]] = shift(this.status.registers[Rn], "ASR", shift_n);
                 return { ok : true };
             }
             else
-                return { mnemonic : "asr", op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift };
+                return { mnemonic : "asr", op_str : reg_name(Rd) + "," + reg_name(Rn) + ", #" + shift_n };
         }
         else if ((instr & 0xfc00) == 0x1800) { // add, subtract registers
             var op = (instr >> 9) & 1;
             if (do_execute) {
                 if (op == 0)
-                    this.status.registers[Rd] = (this.status.registers[Rn] + this.status.registers[Rm]) & 0xffffffff;
+                    this.status.registers[Rd] = add(this.status.registers[Rn], this.status.registers[Rm]);
                 else
-                    this.status.registers[Rd] = (this.status.registers[Rn] - this.status.registers[Rm]) & 0xffffffff;
+                    this.status.registers[Rd] = sub(this.status.registers[Rn], this.status.registers[Rm]);
                 return { ok : true };
             }
             else
@@ -216,9 +261,9 @@ class Arm {
             var op = (instr >> 9) & 1;
             if (do_execute) {
                 if (op == 0)
-                    this.status.registers[Rd] = (this.status.registers[Rn] + Rm) & 0xffffffff;
+                    this.status.registers[Rd] = add(this.status.registers[Rn], Rm);
                 else
-                    this.status.registers[Rd] = (this.status.registers[Rn] - Rm) & 0xffffffff;
+                    this.status.registers[Rd] = sub(this.status.registers[Rn], Rm);
                 return { ok : true };
             }
             else
@@ -230,14 +275,10 @@ class Arm {
             var r = (instr >> 8) & 7;
             var op = (instr >> 11) & 1;
             if (do_execute) {
-                if (op == 0) {
+                if (op == 0) 
                     this.status.registers[r] = imm8;
-                }
-                else {
-                    this.status.z = (this.status.registers[r] == imm8);
-                    //status.registers[Rd] = (status.registers[Rn] - Rm) & 0xffffffff;
-                    //COMPARE & update program status word
-                }
+                else
+                    [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[r], imm8, "CMP");
                 return { ok : true };
             }
             else
@@ -248,29 +289,109 @@ class Arm {
             var r = (instr >> 8) & 7;
             var op = (instr >> 11) & 1;
             if (do_execute) {
-                if (op == 0)
-                    this.status.registers[r] = (this.status.registers[r] + imm8) & 0xffffffff;
-                else
-                    this.status.registers[r] = (this.status.registers[r] - imm8) & 0xffffffff;
-                return { ok : true };
+                if (op == 0) // ADD
+                    this.status.registers[r] = add(this.status.registers[r], imm8);
+                else // SUB
+                    this.status.registers[r] = sub(this.status.registers[r], imm8);
+                    return { ok : true };
             }
             else
                 return { mnemonic : this.add_sub[op], op_str : reg_name(r) + ", #" + imm8 };
         }
         else if (instr_ff00 == 0x4000) { // AND | EOR | LSL | LSR rd, rn
             var op = (instr >> 6) & 3;
-            return { mnemonic : this.and_eor[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
+            if (do_execute) {
+                switch ( op ) {
+                    case 0: // AND
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "AND");
+                        break;
+                    case 1: // EOR  
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "EOR");
+                        break;
+                    case 2: // LSL
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "LSL", this.status.registers[Rn]);
+                        break;
+                    case 3: // LSR
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "LSR", this.status.registers[Rn]);
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.and_eor[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ff00 == 0x4100) { // ASR | ADC | SBC | ROR rd, rn
             var op = (instr >> 6) & 3;
-            return { mnemonic : this.asr_adc[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
+            if( do_execute ) {
+                switch ( op ) {
+                    case 0: // ASR
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "ASR", this.status.registers[Rn]);
+                        break;
+                    case 1: // ADC
+                        this.status.registers[Rd] = adc(this.status.registers[Rd], this.status.registers[Rd], this.status.c);
+                        break;
+                    case 2: // SBC
+                        this.status.registers[Rd] = sbc(this.status.registers[Rd], this.status.registers[Rd], !(this.status.c)); 
+                        break;
+                    case 3: // ROR
+                        this.status.registers[Rd] = shift(this.status.registers[Rd], "ROR", this.status.registers[Rn]);
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.asr_adc[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ff00 == 0x4200) { // TST | NEG | CMP | CMN rd, rn
             var op = (instr >> 6) & 3;
-            return { mnemonic : this.tst_neg[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
+            if( do_execute ){
+                switch (op) { 
+                    case 0: // TST
+                        [, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "AND");
+                        break;
+                    case 1: // NEG
+                        [this.status.registers[Rd], this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "NEG");
+                        break;
+                    case 2: // CMP
+                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "CMP");
+                        break;
+                    case 3: // CMN
+                        [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn], "CMN");
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.tst_neg[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ff00 == 0x4300) { // ORR | MUL | BIC | MVN rd, rn
             var op = (instr >> 6) & 3;
+            if( do_execute ){
+                switch (op) { 
+                    case 0: // ORR
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "ORR");
+                        break;
+                    case 1: // MUL
+                        this.status.registers[Rd] = mul(this.status.registers[Rd], this.status.registers[Rn]);
+                        break;
+                    case 2: // BIC
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "BIC");
+                        break;
+                    case 3: // MVN
+                        this.status.registers[Rd] = bitwiseOp(this.status.registers[Rd], this.status.registers[Rn], "MVN");
+                        break;
+                    default:
+                        break;
+                }
+                return { ok : true };
+            }
+            else
             return { mnemonic : this.orr_mul[op], op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x4600) { // MOV rd, rn
@@ -282,36 +403,100 @@ class Arm {
                 return { mnemonic : "MOV", op_str : reg_name(Rd) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x4440) { // ADD Rd, R(n+8)
-            return { mnemonic : "ADD", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
+            if(do_execute){
+                this.status.registers[Rd] = add(this.status.registers[Rd], this.status.registers[Rn + 8]);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "ADD", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4640) { // MOV Rd, R(n+8)
-            return { mnemonic : "MOV", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                this.status.registers[Rd] = this.status.registers[Rn + 8];
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "MOV", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4480) { // ADD R(d+8), Rn
-            return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
+            if(do_execute){
+                this.status.registers[Rd + 8] = add(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x4680) { // MOV R(d+8), Rn
-            return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
+            if (do_execute) {
+                this.status.registers[Rd + 8] = this.status.registers[Rn];
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x44c0) { // ADD R(d+8), R(n+8)
-            return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
+            if(do_execute){
+                this.status.registers[Rd + 8] = add(this.status.registers[Rd + 8], this.status.registers[Rn + 8]);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "ADD", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x46c0) { // MOV R(d+8), R(n+8)
-            return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                this.status.registers[Rd + 8] = this.status.registers[Rn + 8];
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "MOV", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4540) { // CMP Rd, R(n+8)
-            return { mnemonic : "CMP", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd], this.status.registers[Rn + 8], "CMP");
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "CMP", op_str : reg_name(Rd) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ffc0 == 0x4580) { // CMP R(d+8), Rn
-            return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
+            if (do_execute) {
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd + 8], this.status.registers[Rn], "CMP");
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn) };
         }
         else if (instr_ffc0 == 0x45c0) { // CMP R(d+8), R(n+8)
-            return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
+            if (do_execute) {
+                [, this.status.c, this.status.v, this.status.n, this.status.z] = bitwiseOp_c(this.status.registers[Rd + 8], this.status.registers[Rn + 8], "CMP");
+                return { ok : true };
+            }
+            else
+                return { mnemonic : "CMP", op_str : reg_name(Rd + 8) + "," + reg_name(Rn + 8) };
         }
         else if (instr_ff00 == 0x4700) { // BX | BLX Rm
-            var r = (instr >> 6) & 0xf;
+            var r = (instr >> 3) & 0xf; // BLX R15 unpredictable
             var op = (instr >> 7) & 1;
-            return { mnemonic : this.bx_blx[op], op_str : reg_name(r) };
+            var t_bit = this.status.registers[r] & 0x1;
+            var address = this.status.registers[r] & 0xfffffffe;
+            var target = this.find_address(address, Region.ROM);
+            if (do_execute) {
+                //console.log(this.core.in_limit(target), target.toString(16), this.status.registers[14].toString(16), this.get_pc().toString(16));
+                if(!this.core.in_limit(target))
+                    return { ok: false }
+                if(op == 0){ // BX    
+                    this.status.registers[15] = target;
+                    //this.mode = t_bit; // Changing Mode -> ARM/THUMB
+                }
+                else{ // BLX
+                    this.status.registers[14] = this.get_pc();
+                    this.status.registers[15] = target;
+                    //this.mode = t_bit; // Changing Mode -> ARM/THUMB
+                } 
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.bx_blx[op], op_str : reg_name(r) };
         }
         else if (instr_f800 == 0x4800) { // LDR Rd, [pc, #imm * 4]
             var r = (instr >> 8) & 0x7;
@@ -319,33 +504,83 @@ class Arm {
             var target = pc + imm * 4;
             return { mnemonic : "LDR", op_str : reg_name(r) + ", [ #0x" + target.toString(16) + " ] ;; pc + #" + (imm*4) };
         }
-        else if (instr_f800 == 0x5000) { // STR pre
+        else if (instr_f800 == 0x5000) { // STR pre 
             var op = (instr >> 9) & 3;
-            return { mnemonic : this.str[op],
+            var address = this.status.registers[Rn] + this.status.registers[Rm]; 
+            if (do_execute) {
+                this.store_addr(address, this.status.registers[Rd], op);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str[op],
                      op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + reg_name(Rm) + "]" };
         }
         else if (instr_f800 == 0x5800) { // LDR pre
             var op = (instr >> 9) & 3;
-            return { mnemonic : this.ldr[op],
+            var address = this.status.registers[Rn] + this.status.registers[Rm]; 
+            if (do_execute) {
+                this.status.registers[Rd] = this.load_add(address, op);
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.ldr[op],
                      op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + reg_name(Rm) + "]" };
         }
         else if (instr_f000 == 0x6000) { // STR | LDR Ld, [Ln, #immed*4]
-            var op = (instr >> 11) & 1;
+            var op = (instr >> 11) & 0x1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op],
-                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm*4).toString(16) + "]" };
+            var address = this.status.registers[Rn] + imm; 
+            if (do_execute) {
+                switch (op) {
+                    case 0: // STR
+                        this.store_addr(address, this.status.registers[Rd], 0);
+                        break;
+                    case 1: // LDR
+                        this.status.registers[Rd] = this.load_add(address, 0);
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str_ldr[op],
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + ", #" + (imm*4).toString(16) + "]" };
         }
         else if (instr_f000 == 0x7000) { // STR.B | LDR.B Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op] + ".B",
-                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm).toString(16) + "]" };
+            var address = this.status.registers[Rn] + imm; 
+            if (do_execute) {
+                switch (op) {
+                    case 0: // STR.B
+                        this.store_addr(address, this.status.registers[Rd], 2);
+                        break;
+                    case 1: // LDR.B
+                        this.status.registers[Rd] = this.load_add(address, 2);
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str_ldr[op] + ".B",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + ", #" + (imm).toString(16) + "]" };
         }
-        else if (instr_f000 == 0x8000) { // STR.W | LDR.W Ld, [Ln, #immed]
+        else if (instr_f000 == 0x8000) { // STR.H | LDR.H Ld, [Ln, #immed]
             var op = (instr >> 11) & 1;
             var imm = (instr >> 6) & 0x1f;
-            return { mnemonic : this.str_ldr[op] + ".W",
-                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + "," + (imm*2).toString(16) + "]" };
+            if (do_execute) {
+                switch (op) {
+                    case 0: // STR
+                        this.store_addr(address, this.status.registers[Rd], 1);
+                        break;
+                    case 1: // LDR
+                        this.status.registers[Rd] = this.load_add(address, 1);
+                        break;
+                }
+                return { ok : true };
+            }
+            else
+                return { mnemonic : this.str_ldr[op] + ".H",
+                     op_str : reg_name(Rd) + ", [" + reg_name(Rn) + ", #" + (imm*2).toString(16) + "]" };
         }
         else if (instr_f000 == 0x9000) { // STR | LDR from/to SP 
             var op = (instr >> 11) & 1;
@@ -460,10 +695,10 @@ class Arm {
             }
             else if (subcode == 0) {
                 // Rn + shifted register
-                var shift = (instr_2 >> 3) & 3;
+                var shift_n = (instr_2 >> 3) & 3;
                 var Rm = instr_2 & 0x7;
                 return { mnemonic : this.str_ldr[L] + this.__size(S, size),
-                         op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " + " + reg_name(Rm) + " shr " + shift.toString(16) + "]",
+                         op_str : reg_name(Rt) + ", [" + reg_name(Rn) + " + " + reg_name(Rm) + " shr " + shift_n.toString(16) + "]",
                          skip : true };
             }
             else
